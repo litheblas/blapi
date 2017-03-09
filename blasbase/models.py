@@ -83,14 +83,18 @@ class Person(models.Model):
                                            verbose_name=_('special diets'))
     special_diets_extra = models.CharField(max_length=256, blank=True, verbose_name=_('special diets comments'))
 
-    avatar = ProcessedImageField(upload_to='avatars',
+    avatar = ProcessedImageField(null=True, blank=True,
+                                 upload_to='avatars',
                                  processors=[ResizeToFill(400, 600)],
                                  format='JPEG',
                                  options={'quality': 90})
+    email = models.EmailField(max_length=256, null=True)
 
     last_updated = models.DateTimeField(auto_now=True, verbose_name=_('last updated'))
 
     functions = models.ManyToManyField('Function', through='Assignment', verbose_name=_('functions'))
+
+    user = models.OneToOneField('BlasUser', null=True, blank=True, related_name='person')
 
     objects = PersonQuerySet.as_manager()
 
@@ -327,8 +331,6 @@ class BlasUser(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False, verbose_name=_('is staff'),
                                    help_text=u'Bestämmer om användaren kan logga in i admingränssnittet')
 
-    person = models.OneToOneField(Person, null=True, related_name='user')
-
     extra_name = models.CharField(max_length=64, default="")
 
     objects = UserManager()
@@ -342,6 +344,9 @@ class BlasUser(AbstractBaseUser, PermissionsMixin):
         return self.get_full_name()
 
     def get_assignment_permissions(self, obj=None):
+        if not hasattr(self, 'person'):
+            return set()
+
         """Hämtar rättigheter från den kopplade personens poster och sektioner"""
         perms = set()
         # set(["%s.%s" % (p.content_type.app_label, p.codename) for p in user_obj.user_permissions.select_related()])
@@ -356,7 +361,7 @@ class BlasUser(AbstractBaseUser, PermissionsMixin):
         return perms
 
     def get_full_name(self):
-        if self.person is not None:
+        if hasattr(self, 'person'):
             return self.person.full_name
         elif self.extra_name is not None and self.extra_name != "":
             return self.extra_name
@@ -364,7 +369,7 @@ class BlasUser(AbstractBaseUser, PermissionsMixin):
             return self.email
 
     def get_short_name(self):
-        if self.person is not None:
+        if hasattr(self, 'person'):
             return self.person.short_name
         elif self.extra_name is not None:
             return self.extra_name
