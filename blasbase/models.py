@@ -6,11 +6,12 @@ from blasbase import validators
 from django.utils.translation import ugettext_lazy as _
 from django.core.mail import send_mail
 from django.utils.crypto import get_random_string
+from django.db.models.query import QuerySet
 
 from django.contrib.auth.models import (
     BaseUserManager,
-    Permission,
     AbstractBaseUser,
+    Permission,
     PermissionsMixin
 )
 
@@ -88,7 +89,7 @@ class Person(models.Model):
                                  processors=[ResizeToFill(400, 600)],
                                  format='JPEG',
                                  options={'quality': 90})
-    email = models.EmailField(max_length=256, null=True)
+    email = models.EmailField(max_length=256, null=True, blank=True)
 
     last_updated = models.DateTimeField(auto_now=True, verbose_name=_('last updated'))
 
@@ -129,34 +130,32 @@ class Person(models.Model):
 
 class FunctionManagerMixin(TreeManager):
     def descendants(self, include_self=False):
-        return self.all().get_queryset_descendants(self, include_self=include_self).distinct()
+        return self.get_queryset_descendants(self, include_self=include_self).distinct()
 
     def ancestors(self, include_self=False):
-        # http://stackoverflow.com/q/6471354
-
-        # if isinstance(self, EmptyQuerySet):
-        #    return self
-        queryset = self.none()
-        for obj in self.all():
-            queryset = queryset | obj.get_ancestors(include_self=include_self)
-
-        return queryset.distinct()
+        return self.get_queryset_ancestors(self, include_self=include_self).distinct()
 
     def people(self):
         """
         Returns people from self and all descendants. Does not and should not care about start/end dates.
         """
-        return Person.objects.filter(functions=self.descendants(include_self=True)).distinct()
+        return Person.objects.filter(functions__in=self.all())
 
     def permissions(self):
         """
         Returns permissions from self and all ancestors.
         """
-        return Permission.objects.filter(functions=self.ancestors(include_self=True)).distinct()
+        return Permission.objects.filter(functions__in=self.all())
 
 
-class FunctionQuerySet(models.QuerySet, FunctionManagerMixin):
+
+class FunctionQuerySet(QuerySet, FunctionManagerMixin):
     pass
+
+
+class FunctionManager(FunctionManagerMixin):
+    def get_queryset(self):
+        return FunctionQuerySet(model=self.model, using=self._db).order_by(self.tree_id_attr, self.left_attr)
 
 
 class Function(MPTTModel):
@@ -169,7 +168,7 @@ class Function(MPTTModel):
     membership = models.BooleanField(default=False, verbose_name=_('membership'))
     engagement = models.BooleanField(default=False, verbose_name=_('engagement'))
 
-    objects = FunctionQuerySet.as_manager()
+    objects = FunctionManager()
 
     class Meta:
         unique_together = ('parent', 'name')
@@ -180,13 +179,12 @@ class Function(MPTTModel):
     def __str__(self):
         return u'{0}'.format(self.name)
 
-    @property
-    def people(self):
+    def get_people(self):
         return self.get_descendants(include_self=True).people()
 
-    @property
-    def inherited_permissions(self):
+    def get_inherited_permissions(self):
         return self.get_ancestors(include_self=True).permissions()
+
 
 
 class SpecialDiet(models.Model):
@@ -350,14 +348,8 @@ class BlasUser(AbstractBaseUser, PermissionsMixin):
         """Hämtar rättigheter från den kopplade personens poster och sektioner"""
         perms = set()
         # set(["%s.%s" % (p.content_type.app_label, p.codename) for p in user_obj.user_permissions.select_related()])
-        for assignment in self.person.get_assignments():
-            perms.update(assignment.function.get_all_permissions())
-        return perms
-
-    # Ersätter Djangos egna get_all_permissions för att få med rättigheter från poster/sektioner
-    def get_all_permissions(self, obj=None):
-        perms = super(BlasUser, self).get_all_permissions(obj)  # Hämtar rättigheter på vedertaget vis
-        perms.update(self.get_assignment_permissions(obj))
+        for assignment in self.person.assignments.ongoing():
+            perms.update(assignment.function.get_inherited_permissions())
         return perms
 
     def get_full_name(self):

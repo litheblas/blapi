@@ -80,6 +80,11 @@ AUTH_PASSWORD_VALIDATORS = [
 
 AUTH_USER_MODEL = 'blasbase.BlasUser'
 
+AUTHENTICATION_BACKENDS = (
+    'blasbase.backends.BlasBackend',
+    'django.contrib.auth.backends.ModelBackend',
+)
+
 SITE_ID = 1
 
 # Internationalization

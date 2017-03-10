@@ -3,8 +3,9 @@ from django.contrib.auth.admin import UserAdmin
 from .forms import BlasUserCreationForm
 
 from django.utils.translation import ugettext_lazy as _
-from .models import BlasUser, Person, Assignment
-
+from django.contrib.auth.models import Group
+from .models import BlasUser, Person, Assignment, Function
+from mptt.admin import DraggableMPTTAdmin
 
 @admin.register(BlasUser)
 class BlasUserAdmin(UserAdmin):
@@ -35,8 +36,18 @@ class BlasUserAdmin(UserAdmin):
 class AssignmentInline(admin.TabularInline):
     model = Assignment
     extra = 1
+    raw_id_fields = ('function',)
 
 
+@admin.register(Function)
+class FunctionAdmin(DraggableMPTTAdmin):
+    model = Function
+
+    list_display = ('tree_actions', 'indented_title', 'name', 'membership', 'engagement')
+    filter_horizontal = ('permissions',)
+
+
+@admin.register(Person)
 class PersonAdmin(admin.ModelAdmin):
     inlines = [AssignmentInline]
 
@@ -59,4 +70,4 @@ class PersonAdmin(admin.ModelAdmin):
 
     list_display = ('first_name', 'nickname', 'last_name')
 
-admin.site.register(Person, PersonAdmin)
+admin.site.unregister(Group)

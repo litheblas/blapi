@@ -2,3 +2,4 @@
 .idea/
 *.pyc
 blapi/local_settings.py
+db.sqlite3
