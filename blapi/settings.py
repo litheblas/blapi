@@ -25,8 +25,9 @@ INSTALLED_APPS = [
     'imagekit',
     'django_countries',
     'mptt',
-
+    'rest_framework',
     'django_smtp_ssl',
+
     'blasbase',
 ]
 
@@ -45,7 +46,7 @@ ROOT_URLCONF = 'blapi.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': ['templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -111,6 +112,13 @@ DATABASES = {
 # https://docs.djangoproject.com/en/1.10/howto/static-files/
 
 STATIC_URL = '/static/'
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+        'rest_framework.permissions.DjangoModelPermissions',
+    )
+}
 
 from blapi.local_settings import *
 
